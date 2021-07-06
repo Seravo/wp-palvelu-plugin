@@ -1,7 +1,14 @@
+includes:
+    - vendor/szepeviktor/phpstan-wordpress/extension.neon
 parameters:
+    level: 5
+    # TODO level: max
     scanFiles:
-        - lib/list-table.php
-        - vendor/php-stubs/wordpress-stubs/wordpress-stubs.php
         - vendor/php-stubs/wp-cli-stubs/wp-cli-stubs.php
-        - vendor/php-stubs/wp-cli-stubs/wp-cli-commands-stubs.php
-        - vendor/php-stubs/wp-cli-stubs/wp-cli-i18n-stubs.php
+    paths:
+        - seravo-plugin.php
+        - lib/
+        - modules/
+    ignoreErrors:
+        # Uses func_get_args()
+        - '#^Function apply_filters(_ref_array)? invoked with [34567] parameters, 2 required\.$#'
