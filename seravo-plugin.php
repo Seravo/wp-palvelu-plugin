@@ -77,6 +77,11 @@ class Loader {
     self::$_single = $this; // Singleton set.
 
     /*
+     * On site init, ensure we have good default for cache key
+     */
+    add_action('init', array( $this, 'cache_key' ), 1);
+
+    /*
      * Load translations
      */
     add_action(
@@ -141,6 +146,58 @@ class Loader {
     // Stop executing PHP once a file has been sent and let Nginx handle the rest
     exit();
   }
+
+  /**
+   * Configure WP_CACHE_KEY_SALT
+   *
+   * This makes sure that we always try our best to cache contents as user
+   * expects us - no content in wrong languages etc. Value is consumed by the
+   * object-cache.php that's distributed with Seravo WordPress template
+   * project.
+   *
+   * You can modify the response by hooking to `seravo_cache_key` filter.
+   * Filter accepts $key as parameter, which is an array of key => value
+   * pairs which will then be used to construct the actual key string.
+   *
+   * @see <https://developer.wordpress.org/reference/functions/get_current_site/>
+   * @see <https://developer.wordpress.org/reference/functions/apply_filters/>
+   **/
+  public function cache_key() {
+    // If cache key salt is already defined, stop here
+    if ( defined('WP_CACHE_KEY_SALT') ) {return;}
+
+    $key = array();
+
+    // If this is a multisite, ensure site_id is part of the cache key to
+    // prevent mixing up content from different sites.
+    if ( is_multisite() ) {
+        $current_site = get_current_site();
+        $id = $current_site->id;
+        $key['site_id'] = $current_site->id;
+    }
+
+    // If WPML language code has been defined, append it to the cache
+    // key to prevent content for different languages from being mixed
+    // up. This is also supported by Polylang.
+    if ( defined('ICL_LANGUAGE_CODE') ) {
+        $key['language'] = ICL_LANGUAGE_CODE;
+    }
+
+    // Apply filters, you can hook to this filter if you want to add your
+    // own config, or modify the default values.
+    $key = apply_filters('seravo_cache_key', $key);
+
+    // Sort items, we'd like to have consistent results
+    // even if some functions get executed in random order
+    ksort($key);
+
+    if ( ! defined('WP_CACHE_KEY_SALT') ) {
+      // So, let's set they key as nothing has done so far.
+      $ckey = 's_' . str_replace('=', ':', http_build_query($key, '', ':'));
+      define('WP_CACHE_KEY_SALT', $ckey);
+    }
+  }
+
 
   /**
    * Pass report file on to admin users
