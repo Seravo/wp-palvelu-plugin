@@ -22,10 +22,12 @@ class SimpleForm extends AjaxHandler {
    * @var string|null Text to be shown on the main button.
    */
   private $button_text;
+
   /**
    * @var string|null Text to be shown on the dryrun button.
    */
   private $dryrun_button_text;
+
   /**
    * @var string|null Text to be shown next to the spinner.
    */

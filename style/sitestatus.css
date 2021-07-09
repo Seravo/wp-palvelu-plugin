@@ -20,10 +20,6 @@ tr.view:hover {
   transition: 0.5s;
 }
 
-th, td {
-  padding: 5px;
-}
-
 .fold {
   display: none;
 }

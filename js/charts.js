@@ -2,6 +2,20 @@
  * Description: common JS file for the ApexCharts on Seravo Plugin.
  */
 
+/**
+ * Load the charts
+ */
+
+jQuery(document).ready(
+  function () {
+    jQuery('[data-section="chart-test"]').on('seravoAjaxSuccess', generate_test_chart);
+    jQuery('[data-section="disk-usage"]').on('seravoAjaxSuccess', generate_disk_donut);
+    jQuery('[data-section="disk-usage"]').on('seravoAjaxSuccess', generate_disk_bars);
+    jQuery('[data-section="cache-status-ajax"]').on('seravoAjaxSuccess', generate_redis_hitchart);
+    jQuery('[data-section="cache-status-ajax"]').on('seravoAjaxSuccess', generate_http_hitchart);
+  }
+);
+
 /*
  * Test chart for demonstration
  */
@@ -318,10 +332,127 @@ function generate_disk_bars(event, response) {
   chart.render();
 }
 
-jQuery(document).ready(
-  function () {
-    jQuery('[data-section="chart-test"]').on('seravoAjaxSuccess', generate_test_chart);
-    jQuery('[data-section="disk-usage"]').on('seravoAjaxSuccess', generate_disk_donut);
-    jQuery('[data-section="disk-usage"]').on('seravoAjaxSuccess', generate_disk_bars);
-  }
-);
+/**
+ * Cache status charts
+ */
+
+ function generate_redis_hitchart(event, response) {
+  var hits = response.redis_data['hits'];
+  var misses = response.redis_data['misses'];
+
+  var options = {
+    series: [{
+      name: seravo_charts_l10n.keyspace_hits,
+      data: [hits]
+    }, {
+      name: seravo_charts_l10n.keyspace_misses,
+      data: [misses]
+    }],
+    chart: {
+      type: 'bar',
+      height: 150,
+      stacked: true,
+      stackType: '100%',
+      toolbar: {
+        show: false
+      }
+    },
+    plotOptions: {
+      bar: {
+        horizontal: true,
+      },
+    },
+    stroke: {
+      width: 1,
+      colors: ['#fff']
+    },
+    yaxis: {
+      show: false
+    },
+    tooltip: {
+      y: {
+        formatter: function (val) {
+          return val
+        }
+      },
+      x: {
+        show: false
+      }
+    },
+    fill: {
+      opacity: 1
+    },
+    legend: {
+      position: 'bottom',
+      horizontalAlign: 'left',
+      offsetX: 0
+    },
+    colors: ['#6aa84f', '#ef7c1a']
+  };
+
+  var redis_hit_chart = new ApexCharts(document.querySelector("#redis-hit-rate-chart"), options);
+  redis_hit_chart.render();
+};
+
+function generate_http_hitchart(event, response) {
+  console.log(response)
+  var hits = response.http_data.hit;
+  var misses = response.http_data.miss;
+  var stales = response.http_data.stale;
+
+  var options = {
+    series: [{
+      name: seravo_charts_l10n.hits,
+      data: [hits]
+    }, {
+      name: seravo_charts_l10n.misses,
+      data: [misses]
+    }, {
+      name: seravo_charts_l10n.stales,
+      data: [stales]
+    }],
+    chart: {
+      type: 'bar',
+      height: 150,
+      stacked: true,
+      stackType: '100%',
+      toolbar: {
+        show: false
+      }
+    },
+    plotOptions: {
+      bar: {
+        horizontal: true,
+      },
+    },
+    stroke: {
+      width: 1,
+      colors: ['#fff']
+    },
+    yaxis: {
+      show: false
+    },
+    tooltip: {
+      y: {
+        formatter: function (val) {
+          return val
+        }
+      },
+      x: {
+        show: false
+      }
+    },
+    fill: {
+      opacity: 1
+    },
+    legend: {
+      position: 'bottom',
+      horizontalAlign: 'left',
+      offsetX: 0
+    },
+    colors: ['#6aa84f', '#ef7c1a', '#47aedc']
+  };
+
+  var http_hit_chart = new ApexCharts(document.querySelector("#http-hit-rate-chart"), options);
+  http_hit_chart.render();
+};

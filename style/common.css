@@ -120,6 +120,10 @@ p.warning, h3.warning {
   color: orange !important;
 }
 
+p.bold {
+  font-weight: bold;
+}
+
 table.widefat {
   width: 100%;
   border: none;
