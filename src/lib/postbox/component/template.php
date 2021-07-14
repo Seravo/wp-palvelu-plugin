@@ -158,11 +158,12 @@ class Template {
    * @param string $label The label text.
    * @param string $name  Name if the input.
    * @param string $value Default value for input.
+   * @param string $placeholder Optional placeholder text for the input.
    * @return \Seravo\Postbox\Component Component with label and input field.
    */
-  public static function textfield_with_label( $label, $name, $value = '' ) {
+  public static function textfield_with_label( $label, $name, $value = '', $placeholder = '' ) {
     $label = new Component($label, '<td><label for="' . $name . '">', '</label></td>');
-    $input = Component::from_raw('<td><input type="text" id="' . $name . '" value="' . $value . '" name="' . $name . '"></td>');
+    $input = Component::from_raw('<td><input type="text" id="' . $name . '" value="' . $value . '" name="' . $name . '" placeholder="' . $placeholder . '"></td>');
 
     $wrapper = new Component('', '<tr class="seravo-label-textfield">', '</tr>');
     $wrapper->add_child($label);

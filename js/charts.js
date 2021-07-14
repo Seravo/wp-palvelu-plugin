@@ -318,6 +318,84 @@ function generate_disk_bars(event, response) {
   chart.render();
 }
 
+/**
+ * Speed test chart. The chart is generated in speedtest.js file.
+ */
+
+function generate_speed_test_chart( speedChart, speedData, speedDataCached ) {
+  // If an instance of the chart already exists, wipe it out
+  if (speedChart instanceof ApexCharts) {
+      speedChart.destroy();
+      speedData = [];
+      speedDataCached = [];
+  }
+
+  var options = {
+      series: [{
+          name: seravo_charts_l10n.latency,
+          data: speedData,
+        },
+        {
+          name: seravo_charts_l10n.cached_latency,
+          data: speedDataCached,
+        }
+      ],
+      chart: {
+      type: 'line',
+      height: 350,
+      zoom: {
+          enabled: false
+          }
+      },
+      plotOptions: {
+        bar: {
+          horizontal: false,
+          endingShape: 'flat',
+        },
+      },
+      dataLabels: {
+        enabled: false
+      },
+      stroke: {
+        show: true,
+        width: 2,
+        curve: 'smooth'
+      },
+      yaxis: {
+        title: {
+          text: 'ms'
+        },
+        min: 0
+      },
+      xaxis: {
+        min: 1,
+        max: speedNumberOfTests,
+        tickAmount: speedNumberOfTests,
+        tickPlacement: 'on'
+      },
+      fill: {
+        opacity: 1
+      },
+      tooltip: {
+        y: {
+          formatter: function (val) {
+          return val + " ms"
+            }
+        }
+      },
+      legend: {
+        onItemClick: {
+          toggleDataSeries: false
+        },
+      }
+  };
+
+  speedChart = new ApexCharts(document.querySelector("#speed-test-results"), options);
+  speedChart.render();
+
+  return {'chart' : speedChart, 'data' : speedData, 'data_cached' : speedDataCached};
+}
+
 jQuery(document).ready(
   function () {
     jQuery('[data-section="chart-test"]').on('seravoAjaxSuccess', generate_test_chart);
