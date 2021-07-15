@@ -87,8 +87,13 @@ class Toolpage {
           'show_less' => __('Show less', 'seravo'),
           'used' => __('Used', 'seravo'),
           'available' => __('Available', 'seravo'),
+          'keyspace_hits' => __('Keyspace hits', 'seravo'),
+          'keyspace_misses' => __('Keyspace misses', 'seravo'),
+          'hits' => __('Hits', 'seravo'),
+          'misses' => __('Misses', 'seravo'),
+          'stales' => __('Stales', 'seravo'),
         );
-        wp_localize_script('seravo_ajax', 'seravo_charts_l10n', $charts_l10n);
+        wp_localize_script('seravo-charts', 'seravo_charts_l10n', $charts_l10n);
       }
     );
   }

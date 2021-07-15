@@ -38,8 +38,8 @@ if ( ! class_exists('Site_Status') ) {
      */
     private static $min_height = 500;
 
-    // Object-cache file location
     /**
+     * Object-cache file location
      * @var string
      */
     const OBJECT_CACHE_PATH = '/data/wordpress/htdocs/wp-content/object-cache.php';
@@ -60,15 +60,6 @@ if ( ! class_exists('Site_Status') ) {
       $page->enable_charts();
       $page->enable_ajax();
       $page->register_page();
-
-      // Add cache status postbox
-      \Seravo\Postbox\seravo_add_raw_postbox(
-        'cache-status',
-        __('Cache Status', 'seravo'),
-        array( __CLASS__, 'seravo_cache_status' ),
-        'tools_page_site_status_page',
-        'normal'
-      );
 
       if ( getenv('WP_ENV') === 'production' ) {
         \Seravo\Postbox\seravo_add_raw_postbox(
@@ -159,6 +150,16 @@ if ( ! class_exists('Site_Status') ) {
         )
       );
       $page->register_postbox($disk_usage);
+
+      /**
+       * Cache status postbox
+       */
+      $http_cache = new Postbox\Postbox('cache-status');
+      $http_cache->set_title(__('Cache Status', 'seravo'));
+      $http_cache->set_requirements(array( Requirements::CAN_BE_ANY_ENV => true ));
+      $http_cache->set_build_func(array( __CLASS__, 'build_cache_status' ));
+      self::init_cache_status($http_cache);
+      $page->register_postbox($http_cache);
     }
 
     public static function register_optimize_image_settings() {
@@ -221,8 +222,6 @@ if ( ! class_exists('Site_Status') ) {
         wp_enqueue_style('seravo_site_status');
         wp_enqueue_script('apexcharts-js');
         wp_enqueue_script('color-hash', SERAVO_PLUGIN_URL . 'js/lib/color-hash.js', array( 'jquery' ), Helpers::seravo_plugin_version(), false);
-        wp_enqueue_script('reports-chart', SERAVO_PLUGIN_URL . 'js/reports-chart.js', array( 'jquery' ), Helpers::seravo_plugin_version(), false);
-        wp_enqueue_script('cache-status-charts', SERAVO_PLUGIN_URL . 'js/cache-status-charts.js', array( 'jquery' ), Helpers::seravo_plugin_version(), false);
         wp_enqueue_script('seravo_site_status');
 
         $loc_translation = array(
@@ -230,11 +229,6 @@ if ( ! class_exists('Site_Status') ) {
           'failed'              => __('Failed to load. Please try again.', 'seravo'),
           'no_reports'          => __('No reports found at /data/slog/html/. Reports should be available within a month of the creation of a new site.', 'seravo'),
           'view_report'         => __('View report', 'seravo'),
-          'object_cache_success'=> __('Object cache is now enabled', 'seravo'),
-          'object_cache_failure'=> __('Enabling object cache failed', 'seravo'),
-          'running_cache_tests' => __('Running cache tests...', 'seravo'),
-          'cache_success'       => __('HTTP cache working', 'seravo'),
-          'cache_failure'       => __('HTTP cache not working', 'seravo'),
           'success'             => __('Success!', 'seravo'),
           'failure'             => __('Failure!', 'seravo'),
           'error'               => __('Error!', 'seravo'),
@@ -243,11 +237,6 @@ if ( ! class_exists('Site_Status') ) {
           'avg_cached_latency'  => __('Avg cached latency: ', 'seravo'),
           'latency'             => __('Latency', 'seravo'),
           'cached_latency'      => __('Cached latency', 'seravo'),
-          'keyspace_hits'       => __('Keyspace hits', 'seravo'),
-          'keyspace_misses'     => __('Keyspace misses', 'seravo'),
-          'hits'                => __('Hits', 'seravo'),
-          'misses'              => __('Misses', 'seravo'),
-          'stales'              => __('Stales', 'seravo'),
           'ajaxurl'             => admin_url('admin-ajax.php'),
           'ajax_nonce'          => wp_create_nonce('seravo_site_status'),
         );
@@ -255,77 +244,200 @@ if ( ! class_exists('Site_Status') ) {
       }
     }
 
-    public static function seravo_cache_status() {
-      ?>
-      <?php
-        if ( ! file_exists(self::OBJECT_CACHE_PATH) ) {
-       ?>
-      <h3 id='object_cache_warning' style='color: red' > <?php _e('Object cache is currently disabled!', 'seravo'); ?> <h3>
-      <button type='button' class='button-primary' id='enable-object-cache'> <?php _e('Enable', 'seravo'); ?> </button>
-      <div class='object_cache_loading' hidden>
-        <img src='/wp-admin/images/spinner.gif'>
-      </div>
-        <?php
+    /**
+     * Helper method for initializing cache status postbox.
+     * @param Postbox\Postbox $postbox The postbox to init AJAX handlers for.
+     */
+    public static function init_cache_status( Postbox\Postbox $postbox ) {
+      // Object cache hit rate
+      $cache_status = new Ajax\LazyLoader('cache-status-ajax');
+      $cache_status->use_hr(false);
+      $cache_status->set_ajax_func(array( __CLASS__, 'get_cache_hit_rate' ));
+      // HTTP cache tests
+      $http_cache_wrapper = new Ajax\FancyForm('http-cache-wrapper');
+      $http_cache_wrapper->set_button_text(__('Run cache tests', 'seravo'));
+      $http_cache_wrapper->set_spinner_text(__('Running cache tests...', 'seravo'));
+      $http_cache_wrapper->set_title_text(__('Click "Run cache tests" to run the cache tests', 'seravo'));
+      $http_cache_wrapper->set_ajax_func(array( __CLASS__, 'run_cache_tests' ));
+      // Object cache missing handler
+      $object_cache = new Ajax\SimpleForm('object-cache-status');
+      $object_cache->set_ajax_func(array( __CLASS__, 'enable_object_cache' ));
+      $object_cache->set_button_text(__('Enable', 'seravo'));
+      $object_cache->set_spinner_flip(true);
+
+      $postbox->add_ajax_handler($object_cache);
+      $postbox->add_ajax_handler($http_cache_wrapper);
+      $postbox->add_ajax_handler($cache_status);
+    }
+
+    /**
+     * Build the cache status postbox.
+     * @param Component $base Postbox's base element to add children to.
+     * @param Postbox\Postbox $postbox Postbox The box.
+     */
+    public static function build_cache_status( Component $base, Postbox\Postbox $postbox ) {
+      if ( ! file_exists(self::OBJECT_CACHE_PATH) ) {
+        $notice = new Component('', '<table><tr>', '</tr></table>');
+        $notice->add_child(new Component(__('Object cache is currently disabled!', 'seravo'), '<td><b>', '</b></td>'));
+        $notice->add_child($postbox->get_ajax_handler('object-cache-status')->get_component()->set_wrapper('<td>', '</td>'));
+        $base->add_child(Template::nag_notice($notice, 'notice-error', true));
       }
-      ?>
-      <p><?php _e('Caching decreases the load time of the website. The cache hit rate represents the efficiency of cache usage. Read about caching from the <a href="https://help.seravo.com/article/36-how-does-caching-work/" target="_BLANK">documentation</a> or <a href="https://seravo.com/tag/cache/" target="_BLANK">blog</a>.', 'seravo'); ?></p>
-      <h3><?php _e('Object Cache in Redis', 'seravo'); ?></h3>
-      <p><?php _e('Persistent object cache implemented with <a href="https://seravo.com/blog/faster-wordpress-with-transients/" target="_BLANK">transients</a> can be stored in Redis. Instructions on how to activate the object cache can be found from the <a href="https://help.seravo.com/article/38-active-object-cache/" target="_BLANK">documentation</a>.', 'seravo'); ?></p>
-      <h4><?php _e('Cache hit rate', 'seravo'); ?></h4>
-      <div class='redis_info_loading'>
-        <img src='/wp-admin/images/spinner.gif'>
-      </div>
-      <div id='redis-hit-rate-chart'></div>
-      <p>
-        <?php _e('Expired keys: ', 'seravo'); ?>
-        <span id='redis-expired-keys'></span>
-        <span class='tooltip dashicons dashicons-info'>
-          <span class='tooltiptext'>
-            <?php _e('The number of keys deleted.', 'seravo'); ?>
-          </span>
-        </span>
-        <?php _e('<br>Evicted keys: ', 'seravo'); ?>
-        <span id='redis-evicted-keys'></span>
-        <span class='tooltip dashicons dashicons-info'>
-          <span class='tooltiptext'>
-            <?php _e("The number of keys being deleted because the memory usage has hit it's limit.", 'seravo'); ?>
-          </span>
-        </span>
-      </p>
-      <h3><?php _e('HTTP Cache', 'seravo'); ?></h3>
-      <p><?php _e("The HTTP cache hit rate is calculated from all Nginx's access logs. It describes the long-term cache usage situation.", 'seravo'); ?></p>
-      <h4><?php _e('Cache hit rate', 'seravo'); ?></h4>
-      <div class='longterm_cache_loading'>
-        <img src='/wp-admin/images/spinner.gif'>
-      </div>
-      <div id='http-hit-rate-chart'></div>
-      <p><?php _e("There are <span id='http-cache-bypass'></span> bypasses.", 'seravo'); ?></p>
-      <h3><?php _e('Nginx HTTP Cache', 'seravo'); ?></h3>
-      <div id='front_cache_status'>
-        <p><?php _e("Test the functionality of your site's front cache. This can also be done via command line with command <code>wp-check-http-cache</code>.", 'seravo'); ?></p>
-        <button type='button' class='button-primary' id='run-cache-tests'><?php _e('Run cache tests', 'seravo'); ?></button>
-        <div class='seravo-cache-test-result-wrapper'>
-          <div class='seravo_cache_tests_status front_cache_status'>
-            <?php _e('Click "Run cache tests" to run the cache tests', 'seravo'); ?>
-          </div>
-          <div class='seravo-cache-test-result'>
-            <pre id='seravo_cache_tests'></pre>
-          </div>
-          <div class='seravo_cache_test_show_more_wrapper hidden'>
-            <a href='' class='seravo_cache_test_show_more'><?php _e('Toggle Details', 'seravo'); ?>
-              <div class='dashicons dashicons-arrow-down-alt2' id='seravo_arrow_cache_show_more'>
-              </div>
-            </a>
-          </div>
-        </div>
-      </div>
-      <?php
+
+      $base->add_child(Template::paragraph(__('Caching decreases the load time of the website. The cache hit rate represents the efficiency of cache usage. Read about caching from the <a href="https://help.seravo.com/article/36-how-does-caching-work/" target="_BLANK">documentation</a> or <a href="https://seravo.com/tag/cache/" target="_BLANK">blog</a>.', 'seravo')));
+      $base->add_child(Template::section_title(__('Object Cache in Redis', 'seravo')));
+      $base->add_child(Template::paragraph(__('Persistent object cache implemented with <a href="https://seravo.com/blog/faster-wordpress-with-transients/" target="_BLANK">transients</a> can be stored in Redis. Instructions on how to activate the object cache can be found from the <a href="https://help.seravo.com/article/38-active-object-cache/" target="_BLANK">documentation</a>.', 'seravo')));
+
+      // Redis & Nginx cache status
+      $base->add_child(Component::from_raw('<h4>' . __('Cache hit rate', 'seravo') . '</h4><div id="redis-hit-rate-chart"></div>'));
+      $base->add_child($postbox->get_ajax_handler('cache-status-ajax')->get_component());
+
+      // HTTP cache status wrapper
+      $base->add_child(Template::section_title(__('Nginx HTTP Cache', 'seravo')));
+      $base->add_child(Template::paragraph(__("Test the functionality of your site's front cache. This can also be done via command line with command <code>wp-check-http-cache</code>.", 'seravo')));
+      $base->add_child($postbox->get_ajax_handler('http-cache-wrapper')->get_component());
+    }
+
+    /**
+     * AJAX function for enabling object cache.
+     * @return \Seravo\Ajax\AjaxResponse
+     */
+    public static function enable_object_cache() {
+      $response = new AjaxResponse();
+      $object_cache_url = 'https://raw.githubusercontent.com/Seravo/wordpress/master/htdocs/wp-content/object-cache.php';
+
+      // Remove all possible object-cache.php.* files
+      foreach ( glob(self::OBJECT_CACHE_PATH . '.*') as $file ) {
+        unlink($file);
+      }
+
+      // Get the newest file and write it
+      $object_cache_content = file_get_contents($object_cache_url);
+      $object_cache_file = fopen(self::OBJECT_CACHE_PATH, 'w');
+      $write_object_cache = fwrite($object_cache_file, $object_cache_content);
+      fclose($object_cache_file);
+
+      if ( $object_cache_content !== false && $write_object_cache !== false ) {
+        $response->is_success(true);
+        $output = __('Object cache is now enabled!', 'seravo');
+        $style = 'success bold';
+      } else {
+        $response->is_success(false);
+        $response->set_error(__('Error with downloading the latest object-cache file. Please try again later.', 'seravo'));
+      }
+
+      $response->set_data(
+        array(
+          'output' => Template::paragraph($output, $style)->to_html(),
+        )
+      );
+
+      return $response;
+    }
+
+    /**
+     * AJAX function for fetching cache data and generating charts section.
+     * @return \Seravo\Ajax\AjaxResponse
+     */
+    public static function get_cache_hit_rate() {
+      $response = new AjaxResponse();
+
+      // Fetch the redis data
+      $redis = new \Redis();
+      $redis->connect('127.0.0.1', 6379);
+      $stats = $redis->info('stats');
+
+      // Fetch the HTTP cache
+      $access_logs = glob('/data/slog/*_total-access.log');
+
+      $hit = 0;
+      $miss = 0;
+      $stale = 0;
+      $bypass = 0;
+
+      foreach ( $access_logs as $access_log ) {
+        $file = fopen($access_log, 'r');
+        if ( $file ) {
+          while ( ! feof($file) ) {
+            $line = fgets($file);
+            // " is needed to match the log file
+            if ( strpos($line, '" HIT') ) {
+              ++$hit;
+            } elseif ( strpos($line, '" MISS') ) {
+              ++$miss;
+            } elseif ( strpos($line, '" STALE') ) {
+              ++$stale;
+            } elseif ( strpos($line, '" BYPASS') ) {
+              ++$bypass;
+            }
+          }
+        }
+      }
+
+      $expired_keys = '<p>' . __('Expired keys: ', 'seravo') . $stats['expired_keys'] . Template::tooltip(__('The number of keys deleted.', 'seravo'))->to_html();
+      $evicted_keys = '<br>' . __('Evicted keys: ', 'seravo') . $stats['evicted_keys'] . Template::tooltip(__("The number of keys being deleted because the memory usage has hit it's limit.", 'seravo'))->to_html() . '</p>';
+      $http_hit_rate_title = Template::section_title(__('HTTP Cache', 'seravo'))->to_html();
+      $http_cache_text = Template::paragraph(__("The HTTP cache hit rate is calculated from all Nginx's access logs. It describes the long-term cache usage situation.", 'seravo'))->to_html();
+      $http_hit_rate = $http_hit_rate_title . $http_cache_text . '<h4>' . __('Cache hit rate', 'seravo') . '</h4><div id="http-hit-rate-chart"></div>';
+      $bypasses = Template::paragraph(
+        sprintf(
+        // translators: %s is the amount of bypasses
+          __('There are %s bypasses', 'seravo'),
+          $bypass
+        )
+      )->to_html();
+
+      $response->is_success(true);
+      $response->set_data(
+        array(
+          'output' => $expired_keys . $evicted_keys . $http_hit_rate . $bypasses,
+          'redis_data' => array(
+            'hits' => $stats['keyspace_hits'],
+            'misses' => $stats['keyspace_misses'],
+          ),
+          'http_data' => array(
+            'hit' => $hit,
+            'miss' => $miss,
+            'stale' => $stale,
+          ),
+        )
+      );
+
+      return $response;
+    }
+
+    /**
+     * AJAX function for running cache tests and wrapping the output.
+     * @return \Seravo\Ajax\AjaxResponse
+     */
+    public static function run_cache_tests() {
+      $response = new AjaxResponse();
+      exec('wp-check-http-cache ' . get_site_url(), $output);
+      array_unshift($output, '$ wp-check-http-cache ' . get_site_url());
+
+      $message = __('HTTP cache not working', 'seravo');
+      $status_color = Ajax\FancyForm::STATUS_RED;
+
+      if ( strpos(implode("\n", $output), "\nSUCCESS: ") == true ) {
+        $message = __('HTTP cache working', 'seravo');
+        $status_color = Ajax\FancyForm::STATUS_GREEN;
+      }
+
+      $response->is_success(true);
+      $response->set_data(
+        array(
+          'output' => '<pre>' . implode("\n", $output) . '</pre>',
+          'title' => $message,
+          'color' => $status_color,
+        )
+      );
+
+      return $response;
     }
 
     /**
      * Build function for the disk usage postbox.
      * @param Component $base Postbox base component to add elements.
-     * @param Postbox $postbox The postbox the func is building.
+     * @param Postbox\Postbox $postbox The postbox the func is building.
      */
     public static function build_disk_usage( Component $base, Postbox\Postbox $postbox ) {
       $base->add_child(Template::side_by_side(Component::from_raw('<div id="disk-usage-donut" style="width: 100px;"></div>'), $postbox->get_ajax_handler('disk-usage')->get_component(), 'evenly'));
@@ -450,7 +562,7 @@ if ( ! class_exists('Site_Status') ) {
     /**
      * Build the HTTP Request Statistics postbox.
      * @param Component $base Postbox's base element to add children to.
-     * @param Postbox $postbox Postbox The box.
+     * @param Postbox\Postbox $postbox Postbox The box.
      */
     public static function build_http_statistics( Component $base, Postbox\Postbox $postbox ) {
       $base->add_child(Template::paragraph(__('These monthly reports are generated from the HTTP access logs of your site. All HTTP requests for the site are included, with traffic from both humans and bots. Requests blocked at the firewall level (for example during a DDOS attack) are not logged. The log files can also be accessed directly on the server at <code>/data/slog/html/goaccess-*.html</code>.', 'seravo')));
@@ -509,7 +621,7 @@ if ( ! class_exists('Site_Status') ) {
     /**
      * Build the site-info postbox.
      * @param Component $base Postbox's base element to add children to.
-     * @param Postbox $postbox Postbox The box.
+     * @param Postbox\Postbox $postbox Postbox The box.
      * @param mixed $data Data returned by data func.
      */
     public static function build_site_info( Component $base, Postbox\Postbox $postbox, $data ) {
