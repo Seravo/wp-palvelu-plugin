@@ -89,14 +89,6 @@ if ( ! class_exists('Site_Status') ) {
       );
 
       \Seravo\Postbox\seravo_add_raw_postbox(
-        'speed-test',
-        __('Speed test', 'seravo'),
-        array( __CLASS__, 'speed_test' ),
-        'tools_page_site_status_page',
-        'side'
-      );
-
-      \Seravo\Postbox\seravo_add_raw_postbox(
         'sanitize-uploads',
         __('Sanitize uploads', 'seravo'),
         array( __CLASS__, 'sanitize_uploads' ),
@@ -122,7 +114,7 @@ if ( ! class_exists('Site_Status') ) {
       $page->register_postbox($site_info);
 
       /**
-       * HTTP Request Statistics  postbox
+       * HTTP Request Statistics postbox
        */
       $http_stats = new Postbox\LazyLoader('http-request-statistics');
       $http_stats->set_title(__('HTTP Request Statistics', 'seravo'));
@@ -159,6 +151,17 @@ if ( ! class_exists('Site_Status') ) {
         )
       );
       $page->register_postbox($disk_usage);
+
+      /**
+       * Speed test postbox
+       */
+      $speed_test = new Postbox\SimpleForm('speed-test');
+      $speed_test->set_title(__('Speed test', 'seravo'));
+      $speed_test->set_build_form_func(array( __CLASS__, 'build_speed_test' ));
+      $speed_test->set_ajax_func(array( __CLASS__, 'run_speed_test' ));
+      $speed_test->set_requirements(array( Requirements::CAN_BE_ANY_ENV => true ));
+      $speed_test->set_button_text(__('Run Test', 'seravo'));
+      $page->register_postbox($speed_test);
     }
 
     public static function register_optimize_image_settings() {
@@ -215,11 +218,13 @@ if ( ! class_exists('Site_Status') ) {
 
     public static function enqueue_site_status_scripts( $page ) {
       wp_register_script('apexcharts-js', SERAVO_PLUGIN_URL . 'js/lib/apexcharts.js', null, Helpers::seravo_plugin_version(), true);
+      wp_register_script('speedtest-js', SERAVO_PLUGIN_URL . 'js/speedtest.js', array( 'jquery' ), Helpers::seravo_plugin_version());
       wp_register_script('seravo_site_status', SERAVO_PLUGIN_URL . 'js/sitestatus.js', '', Helpers::seravo_plugin_version());
       wp_register_style('seravo_site_status', SERAVO_PLUGIN_URL . 'style/sitestatus.css', '', Helpers::seravo_plugin_version());
       if ( $page === 'tools_page_site_status_page' ) {
         wp_enqueue_style('seravo_site_status');
         wp_enqueue_script('apexcharts-js');
+        wp_enqueue_script('speedtest-js');
         wp_enqueue_script('color-hash', SERAVO_PLUGIN_URL . 'js/lib/color-hash.js', array( 'jquery' ), Helpers::seravo_plugin_version(), false);
         wp_enqueue_script('reports-chart', SERAVO_PLUGIN_URL . 'js/reports-chart.js', array( 'jquery' ), Helpers::seravo_plugin_version(), false);
         wp_enqueue_script('cache-status-charts', SERAVO_PLUGIN_URL . 'js/cache-status-charts.js', array( 'jquery' ), Helpers::seravo_plugin_version(), false);
@@ -239,10 +244,6 @@ if ( ! class_exists('Site_Status') ) {
           'failure'             => __('Failure!', 'seravo'),
           'error'               => __('Error!', 'seravo'),
           'confirm'             => __('Are you sure? This replaces all information in the selected environment.', 'seravo'),
-          'avg_latency'         => __('Avg latency: ', 'seravo'),
-          'avg_cached_latency'  => __('Avg cached latency: ', 'seravo'),
-          'latency'             => __('Latency', 'seravo'),
-          'cached_latency'      => __('Cached latency', 'seravo'),
           'keyspace_hits'       => __('Keyspace hits', 'seravo'),
           'keyspace_misses'     => __('Keyspace misses', 'seravo'),
           'hits'                => __('Hits', 'seravo'),
@@ -882,13 +883,73 @@ if ( ! class_exists('Site_Status') ) {
       echo '<input type="checkbox" name="seravo-enable-sanitize-uploads" id="seravo-enable-sanitize-uploads" ' . checked('on', get_option('seravo-enable-sanitize-uploads'), false) . '>';
     }
 
-    public static function speed_test() {
+    /**
+     * Build form func for the speed test postbox.
+     * @param Component $base Base component of the postbox to add items.
+     */
+    public static function build_speed_test( Component $base ) {
       $target_location = isset($_GET['speed_test_target']) ? $_GET['speed_test_target'] : '';
-      echo ('<p>' . __('Speed test measures the time how long it takes for PHP to produce the HTML output for the WordPress page.', 'seravo') . '</p>');
-      echo('<br><label for="speed_test_url" class="speed_test_form" for="sr-from"> ' . get_home_url() . '/</label> <input class="speed_test_input" type="text" placeholder="' . __('Front Page by Default', 'seravo') . '" id="speed_test_url" value="' . $target_location . '"><br>');
-      echo('<button type="button" class="button-primary" id="run-speed-test">' . __('Run Test', 'seravo') . '</button>');
-      echo('<div id="speed-test-results"></div>');
-      echo('<div id="speed-test-error"></div>');
+      $label = Component::from_raw('<label for="speed-test-url" class="wrap-anywhere"> ' . get_home_url() . '/</label>');
+      $field = Component::from_raw('<input type="text" style="width: 100%;" placeholder="' . __('Front Page by Default', 'seravo') . '" id="speed-test-url" name="speed-test-url" value="' . $target_location . '">');
+      $clear = Template::button('', 'clear-url', 'notice-dismiss');
+
+      $base->add_child(Template::paragraph(__('Speed test measures the time how long it takes for PHP to produce the HTML output for the WordPress page.', 'seravo')));
+      $base->add_child(Template::n_by_side(array( $label, Template::side_by_side($field, $clear) )));
+      $base->add_child(Component::from_raw('<div id="speed-test-results"></div>'));
+      $base->add_child(Component::from_raw('<div id="speed-test-error"></div>'));
+    }
+
+    /**
+     * AJAX function for running speed test.
+     * @return \Seravo\Ajax\AjaxResponse
+     */
+    public static function run_speed_test() {
+      $response = new AjaxResponse();
+
+      // Take location for the speed test from the ajax call. If there is not one, use WP home
+      $url = isset($_POST['location']) ? get_home_url() . '/' . trim($_POST['location']) : get_home_url();
+      // Make sure there is one / at the end of the url
+      $url = rtrim($url, '/') . '/';
+
+      // use filter_var to make sure the resulting url is a valid url
+      if ( ! filter_var($url, FILTER_VALIDATE_URL) ) {
+        $response->is_success(false);
+        $response->set_error(__('Error! Invalid url', 'seravo'));
+        return $response;
+      }
+
+      // Check whether to test cached version or not. Default not.
+      $cached = isset($_POST['cached']) && $_POST['cached'] === 'true';
+
+      // Prepare curl settings which are same for all requests
+      $ch = curl_init($url);
+      curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+      curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0); // equals the command line -k option
+
+      if ( ! $cached ) {
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array( 'Pragma: no-cache' ));
+      }
+      curl_exec($ch);
+      $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+      if ( curl_error($ch) || $httpcode !== 200 ) {
+        $response->is_success(false);
+        $response->set_error(__('Error! HTTP response code: ', 'seravo') . $httpcode);
+        return $response;
+      }
+      $curl_info_arr = curl_getinfo($ch);
+      curl_close($ch);
+
+      $response->is_success(true);
+      $response->set_data(
+        array(
+          'data' => array(
+            'starttransfer_time' => $curl_info_arr['starttransfer_time'],
+          ),
+        )
+      );
+
+      return $response;
     }
 
     /**

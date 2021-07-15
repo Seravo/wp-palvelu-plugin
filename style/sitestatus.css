@@ -240,19 +240,13 @@ th, td {
 .dashicons-info {
   color: #b1b2b3;
 }
-.speed_test_input {
-  width: 50%;
-}
 
-.speed_test_form {
-  padding: 10px;
+#clear-url {
+  position: relative;
+  margin-left: -10px;
 }
 
 .arrow_box {
   font-size: 11px;
   padding: 3px;
-}
-
-#run-speed-test {
-  margin-top: 10px;
 }

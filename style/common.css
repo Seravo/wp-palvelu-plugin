@@ -134,6 +134,10 @@ table.widefat {
   white-space: nowrap;
 }
 
+.wrap-anywhere {
+  overflow-wrap: anywhere;
+}
+
 .result-table-wrapper {
   max-height: 30vh;
   overflow-y: scroll;
