@@ -200,7 +200,6 @@ class Loader {
   }
 
   public static function load_all_modules() {
-
     /*
      * Helpers for hiding useless notifications and small fixes in logging
      */
@@ -294,6 +293,16 @@ class Loader {
       require_once SERAVO_PLUGIN_SRC . 'modules/sanitize-on-upload.php';
     }
 
+    // OLD AJAX FILES
+    require_once SERAVO_PLUGIN_SRC . 'lib/database-ajax.php';
+    require_once SERAVO_PLUGIN_SRC . 'lib/domains-ajax.php';
+    require_once SERAVO_PLUGIN_SRC . 'lib/domain-tables.php';
+    require_once SERAVO_PLUGIN_SRC . 'lib/cruftfiles-ajax.php';
+    require_once SERAVO_PLUGIN_SRC . 'lib/cruftplugins-ajax.php';
+    require_once SERAVO_PLUGIN_SRC . 'lib/cruftthemes-ajax.php';
+    require_once SERAVO_PLUGIN_SRC . 'lib/sitestatus-ajax.php';
+    require_once SERAVO_PLUGIN_SRC . 'modules/check-site-health.php';
+
     /*
      * Hide some functionality in multisites from normal admins
      */
@@ -306,21 +315,21 @@ class Loader {
        * Backups view for Seravo customers
        */
       if ( apply_filters('seravo_show_backups_page', true) && getenv('CONTAINER') ) {
-        require_once SERAVO_PLUGIN_SRC . 'modules/backups.php';
+        Backups::load();
       }
 
       /*
        * Allow Seravo customers to manage their domains & emails
        */
       if ( apply_filters('seravo_show_domains_page', true) && current_user_can('administrator') && getenv('CONTAINER') ) {
-        require_once SERAVO_PLUGIN_SRC . 'modules/domains.php';
+        Domains::load();
       }
 
       /*
        * Show logs from /data/log/*.log in WP-admin
        */
       if ( current_user_can('administrator') ) {
-        require_once SERAVO_PLUGIN_SRC . 'modules/logs.php';
+        Logs::load();
       }
 
       /*
@@ -337,25 +346,25 @@ class Loader {
        * Upkeep page
        */
       if ( apply_filters('seravo_show_upkeep_page', true) && current_user_can('administrator') ) {
-        require_once SERAVO_PLUGIN_SRC . 'modules/upkeep.php';
+        Upkeep::load();
       }
 
       /*
        * Site Status page
        */
       if ( apply_filters('seravo_show_site_status_page', true) && current_user_can('administrator') ) {
-        require_once SERAVO_PLUGIN_SRC . 'modules/sitestatus.php';
+        Site_Status::load();
       }
 
       /*
        * Security page
        */
       if ( apply_filters('seravo_show_security_page', true) && current_user_can('administrator') ) {
-        require_once SERAVO_PLUGIN_SRC . 'modules/security.php';
+        Security::load();
       }
 
       if ( defined('SERAVO_PLUGIN_DEBUG') && SERAVO_PLUGIN_DEBUG ) {
-        require_once SERAVO_PLUGIN_SRC . 'modules/test-page.php';
+        require_once SERAVO_PLUGIN_SRC . 'modules/pages/test-page.php';
       }
     }
 
@@ -364,7 +373,7 @@ class Loader {
      * This module handels it's Network Admin and other permission checks in its own load().
      */
     if ( apply_filters('seravo_show_database_page', true) && current_user_can('administrator') ) {
-      require_once SERAVO_PLUGIN_SRC . 'modules/database.php';
+      Database::load();
     }
 
     // Load WP-CLI module 'wp seravo'

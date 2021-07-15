@@ -78,7 +78,7 @@ if ( ! class_exists('SeravoToolbox') ) {
         __('Logs', 'seravo'),
         'manage_options',
         'logs_page',
-        array( Logs::init(), 'render_tools_page' )
+        array( Logs::load(), 'render_tools_page' )
       );
 
       if ( defined('SERAVO_PLUGIN_DEBUG') && SERAVO_PLUGIN_DEBUG ) {

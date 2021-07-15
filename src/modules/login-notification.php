@@ -10,8 +10,6 @@ if ( ! defined('ABSPATH') ) {
   die('Access denied!');
 }
 
-require_once SERAVO_PLUGIN_SRC . 'modules/logs.php';
-
 if ( ! class_exists('Login_Notifications') ) {
   class Login_Notifications {
 
