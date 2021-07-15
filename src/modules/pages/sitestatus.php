@@ -9,7 +9,8 @@ use \Seravo\Postbox\Component;
 use \Seravo\Postbox\Template;
 use \Seravo\Postbox\Requirements;
 
-class Site_Status {
+class Site_Status extends Toolpage {
+
   // Default maximum resolution for images
   /**
    * @var int
@@ -36,7 +37,18 @@ class Site_Status {
    */
   const OBJECT_CACHE_PATH = '/data/wordpress/htdocs/wp-content/object-cache.php';
 
-  public static function load() {
+  public function __construct() {
+    parent::__construct(
+      __('Site Status', 'seravo'),
+      'tools_page_site_status_page', 
+      'site_status_page',
+      'Seravo\Postbox\seravo_postboxes_page',
+    );
+  }
+
+  public function init_page() {
+    self::init_postboxes($this);
+
     add_action('admin_init', array( __CLASS__, 'register_optimize_image_settings' ));
     add_action('admin_init', array( __CLASS__, 'register_sanitize_uploads_settings' ));
     self::check_default_settings();
@@ -44,15 +56,21 @@ class Site_Status {
     add_action('wp_ajax_seravo_ajax_site_status', 'Seravo\seravo_ajax_site_status');
     add_action('wp_ajax_seravo_speed_test', 'Seravo\seravo_speed_test');
 
-    /**
-     * Init the new Toolpage and postboxes
-     */
-    $page = new Toolpage('tools_page_site_status_page');
-    self::init_sitestatus_postboxes($page);
-    $page->enable_charts();
-    $page->enable_ajax();
-    $page->register_page();
+    $this->enable_charts();
+    $this->enable_ajax();
+  }
 
+  public function set_requirements(Requirements $requirements) {
+    $requirements->can_be_production = \true;
+    $requirements->can_be_staging = \true;
+    $requirements->can_be_development = \true;
+  }
+
+  /**
+   * Init postboxes.
+   * @param Toolpage $page Page to init postboxes to.
+   */
+  public static function init_postboxes( Toolpage $page ) {
     // Add cache status postbox
     \Seravo\Postbox\seravo_add_raw_postbox(
       'cache-status',
@@ -96,13 +114,6 @@ class Site_Status {
       'side'
     );
 
-  }
-
-  /**
-   * Init postboxes.
-   * @param Toolpage $page Page to init postboxes to.
-   */
-  public static function init_sitestatus_postboxes( Toolpage $page ) {
     /**
      * Site info postbox
      */

@@ -2,6 +2,8 @@
 /*
  * Plugin name: Reports
  * Description: View various reports, e.g. HTTP request staistics from GoAccess
+ * 
+ * TODO: REWRITE
  */
 
 namespace Seravo;
@@ -13,22 +15,7 @@ class Logs {
    */
   private $capability_required;
 
-  /**
-   * @var \Seravo\Logs|null
-   */
-  public static $instance;
-
-  /**
-   * @return \Seravo\Logs|null
-   */
-  public static function load() {
-    if ( is_null(self::$instance) ) {
-      self::$instance = new Logs();
-    }
-    return self::$instance;
-  }
-
-  private function __construct() {
+  public function __construct() {
     $this->capability_required = 'activate_plugins';
 
     // on multisite, only the super-admin can use this plugin
@@ -48,6 +35,17 @@ class Logs {
         $this->ajax_fetch_log_rows();
       }
     );
+
+    add_action('admin_menu', function() {
+      add_submenu_page(
+        'tools.php',
+        __('Logs', 'seravo'),
+        __('Logs', 'seravo'),
+        'manage_options',
+        'logs_page',
+        array( $this, 'render_tools_page' )
+      );
+    });
   }
 
   /**

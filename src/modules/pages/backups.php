@@ -9,18 +9,30 @@ use \Seravo\Postbox;
 use \Seravo\Postbox\Toolpage;
 use \Seravo\Postbox\Requirements;
 
-class Backups {
+class Backups extends Toolpage {
 
-  public static function load() {
-    $page = new Toolpage('tools_page_backups_page');
-
-    self::init_backups_postboxes($page);
-
-    $page->enable_ajax();
-    $page->register_page();
+  public function __construct() {
+    parent::__construct(
+      __('Backups', 'seravo'),
+      'tools_page_backups_page', 
+      'backups_page',
+      'Seravo\Postbox\seravo_two_column_postboxes_page',
+    );
   }
 
-  public static function init_backups_postboxes( Toolpage $page ) {
+  public function init_page() {
+    self::init_postboxes($this);
+
+    $this->enable_ajax();
+  }
+
+  public function set_requirements(Requirements $requirements) {
+    $requirements->can_be_production = \true;
+    $requirements->can_be_staging = \true;
+    $requirements->can_be_development = \true;
+  }
+
+  public static function init_postboxes( Toolpage $page ) {
     /**
      * Backup info postbox
      */

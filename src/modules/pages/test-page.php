@@ -13,26 +13,35 @@ use \Seravo\Postbox\Template;
 use \Seravo\Postbox\Toolpage;
 use \Seravo\Postbox\Requirements;
 
-class TestPage {
+class TestPage extends Toolpage {
 
-  /**
-   * Initialize test-page.
-   */
-  public static function load() {
-    $page = new Toolpage('tools_page_test_page');
+  public function __construct() {
+    parent::__construct(
+      'Test-page',
+      'tools_page_test_page', 
+      'test_page',
+      'Seravo\Postbox\seravo_two_column_postboxes_page',
+    );
+  }
 
-    self::init_test_postboxes($page);
+  public function init_page() {
+    self::init_postboxes($this);
 
-    $page->enable_ajax();
-    $page->enable_charts();
-    $page->register_page();
+    $this->enable_ajax();
+    $this->enable_charts();
+  }
+
+  public function set_requirements(Requirements $requirements) {
+    $requirements->can_be_production = \true;
+    $requirements->can_be_staging = \true;
+    $requirements->can_be_development = \true;
   }
 
   /**
    * Initialize test-page postboxes.
    * @param \Seravo\Postbox\Toolpage $page The page for postboxes.
    */
-  public static function init_test_postboxes( Toolpage $page ) {
+  public static function init_postboxes( Toolpage $page ) {
     /**
      * Polling test postbox
      */

@@ -303,78 +303,40 @@ class Loader {
     require_once SERAVO_PLUGIN_SRC . 'lib/sitestatus-ajax.php';
     require_once SERAVO_PLUGIN_SRC . 'modules/check-site-health.php';
 
-    /*
-     * Hide some functionality in multisites from normal admins
+    /**
+     * Seravo tool pages
      */
-    if ( ! is_multisite() || current_user_can('manage_network') ) {
-      if ( current_user_can('administrator') ) {
-        require_once SERAVO_PLUGIN_SRC . 'modules/toolbox.php';
-      }
 
-      /*
-       * Backups view for Seravo customers
-       */
-      if ( apply_filters('seravo_show_backups_page', true) && getenv('CONTAINER') ) {
-        Backups::load();
-      }
+    // Site Status page
+    new Site_Status();
+    // Upkeep page
+    new Upkeep();
+    // Database page 
+    new Database();
+    // Backups page
+    new Backups();
+    // Security page
+    new Security();
+    // Domains page
+    new Domains();
+    // Logs page
+    new Logs();
 
-      /*
-       * Allow Seravo customers to manage their domains & emails
-       */
-      if ( apply_filters('seravo_show_domains_page', true) && current_user_can('administrator') && getenv('CONTAINER') ) {
-        Domains::load();
-      }
-
-      /*
-       * Show logs from /data/log/*.log in WP-admin
-       */
-      if ( current_user_can('administrator') ) {
-        Logs::load();
-      }
-
-      /*
-       * Notification with last WordPress login date and error count. This module handles its own
-       * capability checks.
-       */
-      require_once SERAVO_PLUGIN_SRC . 'modules/login-notification.php';
-
-      /*
-       * Show notification stylish wp-admin dashboard widgets
-       */
-      require_once SERAVO_PLUGIN_SRC . 'modules/dashboard-widgets.php';
-      /*
-       * Upkeep page
-       */
-      if ( apply_filters('seravo_show_upkeep_page', true) && current_user_can('administrator') ) {
-        Upkeep::load();
-      }
-
-      /*
-       * Site Status page
-       */
-      if ( apply_filters('seravo_show_site_status_page', true) && current_user_can('administrator') ) {
-        Site_Status::load();
-      }
-
-      /*
-       * Security page
-       */
-      if ( apply_filters('seravo_show_security_page', true) && current_user_can('administrator') ) {
-        Security::load();
-      }
-
-      if ( defined('SERAVO_PLUGIN_DEBUG') && SERAVO_PLUGIN_DEBUG ) {
-        require_once SERAVO_PLUGIN_SRC . 'modules/pages/test-page.php';
-      }
+    if ( defined('SERAVO_PLUGIN_DEBUG') && SERAVO_PLUGIN_DEBUG ) {
+      // Test page
+      new TestPage();
     }
 
     /*
-     * Database and search & replace
-     * This module handels it's Network Admin and other permission checks in its own load().
-     */
-    if ( apply_filters('seravo_show_database_page', true) && current_user_can('administrator') ) {
-      Database::load();
-    }
+      * Notification with last WordPress login date and error count. This module handles its own
+      * capability checks.
+      */
+    require_once SERAVO_PLUGIN_SRC . 'modules/login-notification.php';
+
+    /*
+      * Show notification stylish wp-admin dashboard widgets
+      */
+    require_once SERAVO_PLUGIN_SRC . 'modules/dashboard-widgets.php';
 
     // Load WP-CLI module 'wp seravo'
     if ( defined('WP_CLI') && WP_CLI ) {

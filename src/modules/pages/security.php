@@ -16,32 +16,47 @@ use \Seravo\Postbox\Template;
 use \Seravo\Postbox\Toolpage;
 use \Seravo\Postbox\Requirements;
 
-class Security {
+class Security extends Toolpage {
 
-  public static function load() {
+  public function __construct() {
+    parent::__construct(
+      __('Security', 'seravo'),
+      'tools_page_security_page', 
+      'security_page',
+      'Seravo\Postbox\seravo_postboxes_page',
+    );
+  }
+
+  public function init_page() {
+    self::init_postboxes($this);
+
     add_action('admin_notices', array( __CLASS__, '_seravo_check_security_options' ));
-
     add_action('admin_init', array( __CLASS__, 'register_security_settings' ));
     add_action('admin_enqueue_scripts', array( __CLASS__, 'register_security_scripts' ));
-
     // AJAX functionality for listing and deleting files
     add_action('wp_ajax_seravo_cruftfiles', 'Seravo\seravo_ajax_list_cruft_files');
     add_action('wp_ajax_seravo_delete_file', 'Seravo\seravo_ajax_delete_cruft_files');
-
     // AJAX functionality for listing and removing plugins
     add_action('wp_ajax_seravo_list_cruft_plugins', 'Seravo\seravo_ajax_list_cruft_plugins');
     add_action('wp_ajax_seravo_remove_plugins', 'Seravo\seravo_ajax_remove_plugins');
-
     // AJAX functionality for listing and removing themess
     add_action('wp_ajax_seravo_list_cruft_themes', 'Seravo\seravo_ajax_list_cruft_themes');
     add_action('wp_ajax_seravo_remove_themes', 'Seravo\seravo_ajax_remove_themes');
+    
+    $this->enable_ajax();
+  }
 
-    $page = new Toolpage('tools_page_security_page');
-    self::init_security_postboxes($page);
+  public function set_requirements(Requirements $requirements) {
+    $requirements->can_be_production = \true;
+    $requirements->can_be_staging = \true;
+    $requirements->can_be_development = \true;
+  }
 
-    $page->enable_ajax();
-    $page->register_page();
-
+  /**
+   * Init postboxes on Security page.
+   * @param Toolpage $page Page to init postboxes.
+   */
+  public static function init_postboxes( Toolpage $page ) {
     \Seravo\Postbox\seravo_add_raw_postbox(
       'security_info',
       __('Security', 'seravo'),
@@ -73,13 +88,7 @@ class Security {
       'tools_page_security_page',
       'column4'
     );
-  }
 
-  /**
-   * Init postboxes on Security page.
-   * @param Toolpage $page Page to init postboxes.
-   */
-  public static function init_security_postboxes( Toolpage $page ) {
     /**
      * Check passwords postbox (Beta)
      */

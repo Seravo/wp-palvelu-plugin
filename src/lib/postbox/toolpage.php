@@ -8,12 +8,25 @@ namespace Seravo\Postbox;
  * Toolpage is a simple way to handle a postbox screen as
  * it takes care of the common features like nonces.
  */
-class Toolpage {
+abstract class Toolpage {
 
   /**
    * @var string Admin screen id where the page should be displayed in.
    */
   private $screen;
+  /**
+   * @var string Slug name to refer to this page.
+   */
+  private $slug;
+  /**
+   * @var string The text to be displayed in the title tags of the page and menu.
+   */
+  private $title;
+  /**
+   * TODO: Check if this is used for wrong purpose in Seravo Plugin!
+   * @var string The position in the menu order this item should appear
+   */
+  private $position;
 
   /**
    * @var \Seravo\Postbox\Postbox[] Postboxes registered on the page.
@@ -21,11 +34,37 @@ class Toolpage {
   private $postboxes = array();
 
   /**
+   * @var \Seravo\Postbox\Requirements Requirements for this page.
+   */
+  private $requirements;
+
+  public abstract function init_page();
+
+  public abstract function set_requirements(Requirements $requirements);
+
+  /**
    * Constructor for Toolpage. Will be called on new instance.
    * @param string $screen Admin screen id where the page should be displayed in.
    */
-  public function __construct( $screen = '' ) {
+  public function __construct( $title, $screen, $slug, $position ) {
+    $this->title = $title;
     $this->screen = $screen;
+    $this->slug = $slug;
+    $this->position = $position;
+
+    $this->requirements = new Requirements();
+    $this->set_requirements($this->requirements);
+
+    if ( ! $this->is_allowed() ) {
+      return;
+    }
+
+    $this->init_page();
+    $this->register_page();
+
+    add_action('admin_menu', function() {
+      $this->register_submenu();
+    });
   }
 
   /**
@@ -103,17 +142,41 @@ class Toolpage {
     $this->postboxes[] = $postbox;
   }
 
+  public function is_allowed() {
+    if ( ! $this->requirements->is_allowed() ) {
+      return false;
+    }
+
+    if ( getenv('CONTAINER') === false ) {
+      // Not Seravo environment
+      return false;
+    }
+
+    return (bool) apply_filters('seravo_show_' . $this->slug, true);
+  }
+
   /**
    * Register the page to be rendered. This should be called once
    * the page is ready and all the postboxes are added.
    * @param \Seravo\Postbox\Postbox $postbox
    */
-  public function register_page() {
+  private function register_page() {
     foreach ( $this->postboxes as $postbox ) {
       if ( $postbox->_is_allowed() ) {
         seravo_add_postbox($this->screen, $postbox);
       }
     }
+  }
+
+  private function register_submenu() {
+    add_submenu_page(
+      'tools.php',
+      $this->title,
+      $this->title,
+      'manage_options',
+      $this->slug,
+      $this->position,
+    );
   }
 
 }

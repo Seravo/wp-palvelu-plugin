@@ -7,27 +7,36 @@
 
 namespace Seravo;
 
-class Domains {
-  /**
-   * @var \Seravo\Domains|null
-   */
-  public static $instance;
+use \Seravo\Postbox\Toolpage;
+use \Seravo\Postbox\Requirements;
+
+class Domains extends Toolpage {
 
   public static $domains_table;
   public static $mails_table;
 
-  /**
-   * @return \Seravo\Domains|null
-   */
-  public static function load() {
-    if ( is_null(self::$instance) ) {
-      self::$instance = new Domains();
-    }
-
-    return self::$instance;
+  public function __construct() {
+    parent::__construct(
+      __('Domains', 'seravo'),
+      'tools_page_domains_page', 
+      'domains_page',
+      'Seravo\Postbox\seravo_wide_column_postboxes_page',
+    );
   }
 
-  public function __construct() {
+  public function init_page() {
+    self::init_postboxes();
+
+    add_action('wp_ajax_seravo_ajax_domains', 'Seravo\seravo_ajax_domains');
+    add_action('admin_enqueue_scripts', array( __CLASS__, 'register_scripts' ));
+    add_thickbox();
+  }
+
+  public function set_requirements(Requirements $requirements) {
+    $requirements->can_be_production = \true;
+  }
+
+  public static function init_postboxes() {
     \Seravo\Postbox\seravo_add_raw_postbox(
       'domains-management',
       __('Domains', 'seravo'),
@@ -43,11 +52,6 @@ class Domains {
       'tools_page_domains_page',
       'normal'
     );
-
-    add_action('wp_ajax_seravo_ajax_domains', 'Seravo\seravo_ajax_domains');
-    add_action('admin_enqueue_scripts', array( __CLASS__, 'register_scripts' ));
-
-    add_thickbox();
   }
 
   public static function register_scripts( $page ) {

@@ -14,26 +14,34 @@ use \Seravo\Postbox\Template;
 use \Seravo\Postbox\Toolpage;
 use \Seravo\Postbox\Requirements;
 
-class Database {
+class Database extends Toolpage {
 
-  /**
-   * Load database features
-   */
-  public static function load() {
+  public function __construct() {
+    parent::__construct(
+      __('Database', 'seravo'),
+      'tools_page_database_page', 
+      'database_page',
+      'Seravo\Postbox\seravo_postboxes_page',
+    );
+  }
 
-    $page = new Toolpage('tools_page_database_page');
-
-    self::init_database_postboxes($page);
-
-    $page->enable_ajax();
-    $page->register_page();
+  public function init_page() {
+    self::init_postboxes($this);
 
     // TODO: Remove these after all the postboxes are done.
     add_action('admin_enqueue_scripts', array( __CLASS__, 'enqueue_database_scripts' ));
     add_action('wp_ajax_seravo_wp_db_info', 'Seravo\seravo_ajax_get_wp_db_info');
+
+    $this->enable_ajax();
   }
 
-  public static function init_database_postboxes( Toolpage $page ) {
+  public function set_requirements(Requirements $requirements) {
+    $requirements->can_be_production = \true;
+    $requirements->can_be_staging = \true;
+    $requirements->can_be_development = \true;
+  }
+
+  public static function init_postboxes( Toolpage $page ) {
     /**
      * Database access info postbox
      */
