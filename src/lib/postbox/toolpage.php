@@ -50,6 +50,7 @@ class Toolpage {
           'server_error' => __("Error: Oups, this wasn't supposed to happen! Please see the php-error.log.", 'seravo'),
           'show_more' => __('Show more', 'seravo'),
           'show_less' => __('Show less', 'seravo'),
+          'email_fail' => __('There must be at least one contact email', 'seravo'),
         );
         wp_localize_script('seravo-ajax', 'seravo_ajax_l10n', $ajax_l10n);
       }
